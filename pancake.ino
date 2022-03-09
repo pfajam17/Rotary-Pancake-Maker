@@ -16,6 +16,7 @@ LiquidCrystal_I2C lcd(0x27,20,4);
 #define pin_temperatureSensor A0
 #define pin_dosingCylinderIn  42
 #define pin_dosingCylinderOut 44
+#define pin_dosingCylinderEndSwitch 46
 
 #define temperatureSetting1 140.0
 #define temperatureSetting2 150.0
@@ -94,6 +95,7 @@ int main(){
   pinMode(pin_stepperDir, OUTPUT);
   pinMode(pin_dosingCylinderIn, OUTPUT);
   pinMode(pin_dosingCylinderOut, OUTPUT);
+  pinMode(pin_dosingCylinderEndSwitch, INPUT);
 
   
   attachInterrupt(digitalPinToInterrupt(pin_sizeUp), ISRsizeUp, RISING);       //button interrupt to increase size parameter
@@ -207,7 +209,8 @@ int main(){
     
   }
   
-  //return 0;
+  //return 0; 
+  //don't even need this one haha
 }
 
 void ISRsizeUp(){
@@ -260,11 +263,16 @@ void ejectDough(int bakingSize){ //needs a step at the end
   }
   extensionTime = cylinderArea * extensionSpeed / volume;
 
+
   digitalWrite(pin_dosingCylinderIn, HIGH);
   delay(extensionTime);
   digitalWrite(pin_dosingCylinderIn, LOW);
-  digitalWrite(pin_dosingCylinderOut, HIGH);
-  delay(extensionTime);
+  
+  while(digitalRead(pin_dosingCylinderEndSwitch) == LOW){
+    digitalWrite(pin_dosingCylinderOut, HIGH);
+  } else {
+    digitalWrite(pin_dosingCylinderOut, LOW);
+  }
   stepOneZone();  
 }
 
@@ -281,7 +289,7 @@ void readInnerTemperature(){
   int tempReading = analogRead(pin_temperatureSensor);
   float temp = ((float)tempReading - 412) * 1.256;
   temperatureBuffer[temperatureBufferCounter] = temp;
-  if(temp < 400 && temp > -20){ //only write and save the value by moving the buffer counter if it's within a realistic spectrum (unless you use the thing in Siberia or inside a bigger oven)
+  if(temp < 400 && temp > -40){ //only write and save the value by moving the buffer counter if it's within a realistic spectrum (unless you use the thing in Siberia or inside a bigger oven)
     temperatureBufferCounter++;
   }  
   if(temperatureBufferCounter > 4){ //when the buffer is full, temperature is averaged from 5 values and buffer is 'cleared' by allowing the values to be overwritten
