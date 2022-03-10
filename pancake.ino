@@ -18,11 +18,11 @@ LiquidCrystal_I2C lcd(0x27,20,4);
 #define pin_dosingCylinderOut 44
 #define pin_dosingCylinderEndSwitch 46
 
-#define temperatureSetting1 140.0
-#define temperatureSetting2 150.0
-#define temperatureSetting3 160.0
-#define temperatureSetting4 170.0
-#define temperatureSetting5 180.0
+#define temperatureSetting1 150.0
+#define temperatureSetting2 160.0
+#define temperatureSetting3 170.0
+#define temperatureSetting4 180.0
+#define temperatureSetting5 190.0
 #define temperatureTolerance  5.0
 
 #define stepsPerRotation  200
@@ -31,13 +31,13 @@ LiquidCrystal_I2C lcd(0x27,20,4);
 #define stepsPerZone  stepsPerRotation * transmissionFactor / zones
 #define stepperRPMs 200
 
-#define bakingTimeSeconds 180
-//amal a Hausnummer
+#define bakingTimeSeconds 600
+//as per the experiment
 
 #define cylinderDiameter  16.5 //mm
 #define cylinderArea  cylinderDiameter * cylinderDiameter * 3.1415 / 4    //mm^2
 #define extensionSpeed  0.065 //mm per millisecond
-#define extensionVolume1  20000   //mm^3  equals 20ml
+#define extensionVolume1  20000   // mm^3 (20k equals 20ml)
 #define extensionVolume2  30000
 #define extensionVolume3  40000
 #define extensionVolume4  50000
@@ -66,7 +66,6 @@ int temperatureBufferCounter = 0;
 volatile int i;
 
 bool startupPhase = true;
-//bool reconfigureTimers = false; not used anymore
 bool makingAPancakeRightNow = false;
 bool emergencyFlag = false;
 
@@ -75,7 +74,6 @@ bool screenRefreshStatePreviously = false;
 
 int no_queuedPancakes = 0;
 
-//Stepper discStepper = Stepper(stepsPerRotation, pin_stepperStep, pin_stepperDir);
 A4988 stepper(stepsPerRotation, pin_stepperDir, pin_stepperStep);
 
 
@@ -284,7 +282,6 @@ void readInnerTemperature(){
   //2,983V -> 250°C (read as a value of 611)
   //2,016V -> 0°C  (read as a value of 412)
   //linear in between
-  //https://test-wetterstation.de/temperaturmessung-mit-dem-arduino
   float rv;
   int tempReading = analogRead(pin_temperatureSensor);
   float temp = ((float)tempReading - 412) * 1.256;
