@@ -5,6 +5,9 @@ LiquidCrystal_I2C lcd(0x27,20,4);
 #define pin_sizeUp  18
 #define pin_sizeDown  19
 #define pin_queuePancake  21
+#define pin_queueLED1 22
+#define pin_queueLED2 24
+#define pin_queueLED3 26
 #define pin_heatingCoil 11
 #define pin_knob1 31
 #define pin_knob2 33
@@ -13,10 +16,12 @@ LiquidCrystal_I2C lcd(0x27,20,4);
 #define pin_knob5 39
 #define pin_stepperStep 5
 #define pin_stepperDir  6
+#define pin_lubricator  12
 #define pin_temperatureSensor A0
 #define pin_dosingCylinderIn  42
 #define pin_dosingCylinderOut 44
-#define pin_dosingCylinderEndSwitch 46
+#define pin_dosingCylinderBrake 46
+#define pin_dosingCylinderEndSwitch 48
 
 #define temperatureSetting1 150.0
 #define temperatureSetting2 160.0
@@ -87,20 +92,20 @@ int main(){
   pinMode(pin_knob3, INPUT);
   pinMode(pin_knob4, INPUT);
   pinMode(pin_knob5, INPUT);
-  pinMode(pin_temperatureSensor, INPUT);
   pinMode(pin_heatingCoil, OUTPUT);
   pinMode(pin_stepperStep, OUTPUT);
   pinMode(pin_stepperDir, OUTPUT);
   pinMode(pin_dosingCylinderIn, OUTPUT);
   pinMode(pin_dosingCylinderOut, OUTPUT);
+  pinMode(pin_dosingCylinderBrake, OUTPUT);
   pinMode(pin_dosingCylinderEndSwitch, INPUT);
-
-  
+ 
   attachInterrupt(digitalPinToInterrupt(pin_sizeUp), ISRsizeUp, RISING);       //button interrupt to increase size parameter
   attachInterrupt(digitalPinToInterrupt(pin_sizeDown), ISRsizeDown, RISING);     //button interrupt to decrease size parameter
   attachInterrupt(digitalPinToInterrupt(pin_queuePancake), ISRqueuePancake, RISING);      //button interrupt to queue a new pancake
 
   stepper.begin(stepperRPMs, 1); //stepper speed 200 rpm (before transmission), full steps
+  digitalWrite(pin_dosingCylinderBrake, LOW); //disengage cylinder brake
 
   //timer config for the main timer (1s)
   TCCR1A |= (1 << COM1A1);    //enables compare output channel A on output pin 11 (OC1A)
@@ -134,7 +139,11 @@ int main(){
       if(innerTemperature < selectedTemperature){
         ;
       }else {
-        startupPhase = false;        
+        startupPhase = false; 
+        digitalWrite(pin_lubricator, HIGH); 
+        stepOneZone();
+        digitalWrite(pin_lubricator, LOW);    
+        //lubricate the first zone, all subsequent ones are lubed from the previous pouring routine  
       }      
     }    
     
@@ -156,6 +165,7 @@ int main(){
       sizeQ3 = 0;
       //each queued pancake moves up one slot
       //the first queued value is moved into a different variable to free up a queue slot
+      no_queuedPancakes++;
     }
 
     //pour dough, move into heating zone and start timer
@@ -170,8 +180,18 @@ int main(){
         default: break;
       }
       makingAPancakeRightNow = false;
+      no_queuedPancakes--;
     }
 
+    //update the queue LED indicator
+    switch (no_queuedPancakes){
+      case 0: digitalWrite(pin_queueLED1, LOW; digitalWrite(pin_queueLED2, LOW; digitalWrite(pin_queueLED3, LOW; break;
+      case 1: digitalWrite(pin_queueLED1, HIGH; digitalWrite(pin_queueLED2, LOW; digitalWrite(pin_queueLED3, LOW; break;
+      case 2: digitalWrite(pin_queueLED1, HIGH; digitalWrite(pin_queueLED2, HIGH; digitalWrite(pin_queueLED3, LOW; break;
+      case 3: digitalWrite(pin_queueLED1, HIGH; digitalWrite(pin_queueLED2, HIGH; digitalWrite(pin_queueLED3, HIGH; break;
+      default: digitalWrite(pin_queueLED1, LOW; digitalWrite(pin_queueLED2, LOW; digitalWrite(pin_queueLED3, LOW; break;
+    }
+    
     //a pancake is done and needs ejection
     if((timer1Seconds >= bakingTimeSeconds || timer2Seconds >= bakingTimeSeconds || timer3Seconds >= bakingTimeSeconds) && !emergencyFlag){     //it doesn't matter which timer finishes first, they'll be mixed up after a few queues but the one that's done will always be the first in line
       for(i = 3; i > occupiedZones; i--){
@@ -261,17 +281,19 @@ void ejectDough(int bakingSize){ //needs a step at the end
   }
   extensionTime = cylinderArea * extensionSpeed / volume;
 
-
+  digitalWrite(pin_dosingCylinderOut, LOW);
   digitalWrite(pin_dosingCylinderIn, HIGH);
   delay(extensionTime);
   digitalWrite(pin_dosingCylinderIn, LOW);
-  
+  delay(200);
   while(digitalRead(pin_dosingCylinderEndSwitch) == LOW){
     digitalWrite(pin_dosingCylinderOut, HIGH);
   } else {
     digitalWrite(pin_dosingCylinderOut, LOW);
   }
+  digitalWrite(pin_lubricator, HIGH);
   stepOneZone();  
+  digitalWrite(pin_lubricator, LOW);
 }
 
 void stepOneZone(){
@@ -279,7 +301,7 @@ void stepOneZone(){
 }
 
 void readInnerTemperature(){   
-  //2,983V -> 250°C (read as a value of 611)
+  //2,836V -> 250°C (read as a value of 611)
   //2,016V -> 0°C  (read as a value of 412)
   //linear in between
   float rv;
@@ -343,10 +365,11 @@ void emergencyMessage(int errorCode){
       break;
     }
     case 4: {
+       digitalWrite(pin_dosingCylinderBrake, HIGH); //engage cylinder brake
        lcd.clear();
-        lcd.setCursor(6,0);
-        lcd.print("Fehler im System: Motor blockiert");
-        break;
+       lcd.setCursor(6,0);
+       lcd.print("Fehler im System: Motor blockiert");
+       break;
     }
     default: exit; //for a call with a wrong error Code
     
